@@ -1,0 +1,74 @@
+CREATE COMPUTE MODULE main_GroupTypes
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL CopyMessageHeaders();
+		
+		SET OutputLocalEnvironment = InputLocalEnvironment;
+	
+        DECLARE inputRef REFERENCE TO InputRoot.XMLNSC.MgList.item[1];
+        DECLARE currentChar CHAR;
+        DECLARE currentType INTEGER;
+        DECLARE index INTEGER;
+        DECLARE charMap ROW;
+        
+        SET index = 1;
+        WHILE LASTMOVE(inputRef) DO
+            SET currentChar = inputRef.char;
+            SET currentType = inputRef.type;
+            
+            DECLARE existingTypeIndex INT;
+            DECLARE charMapRef REFERENCE To charMap;
+		    SET existingTypeIndex = LookForTypeInMap(charMapRef, currentType);
+            
+            IF existingTypeIndex = -1 THEN
+                SET charMap.item[index].type = currentType;
+		        SET charMap.item[index].contains = currentChar;
+                SET index = index + 1;
+            ELSE
+                SET charMap.item[existingTypeIndex].contains = charMap.item[existingTypeIndex].contains || '-' || currentChar;
+            END IF;
+   
+            MOVE inputRef NEXTSIBLING;
+        END WHILE;
+
+		CREATE LASTCHILD OF OutputRoot DOMAIN('XMLNSC');
+        CREATE FIRSTCHILD OF OutputRoot.XMLNSC NAME 'out'; 
+
+		DECLARE refMap REFERENCE TO charMap;
+		WHILE LASTMOVE(refMap) DO
+			SET OutputRoot.XMLNSC.out = refMap;
+		    MOVE refMap NEXTSIBLING;
+		END WHILE;
+		
+		RETURN TRUE;
+	END;
+	
+	CREATE PROCEDURE LookForTypeInMap(IN charMapRef REFERENCE, IN currentType INTEGER) RETURNS INTEGER
+	BEGIN
+	    DECLARE i INTEGER 1;
+	    DECLARE idx INTEGER 1;
+	    WHILE idx <= CARDINALITY(charMapRef.item[]) DO
+	        IF charMapRef.item[idx].type = currentType THEN
+	            RETURN idx;
+	        END IF;
+	        SET idx = idx + 1; 
+	    END WHILE;
+	
+	    RETURN -1;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		SET OutputRoot = InputRoot;
+	END;
+
+END MODULE;
